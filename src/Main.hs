@@ -14,7 +14,8 @@ input =
     \opl _-_ 6\n\
     \op _:=_ 0\n\
     \op _≤_ 4\n\
-    \fib n := if 2 ≤ n then fib (n - 1) + fib (n - 2) else 2"
+    \op [_] 7\n\
+    \[ 2 ]"
 
 main = do
     let (ops, toks) = fromRight $ registerOps $ tokenize input

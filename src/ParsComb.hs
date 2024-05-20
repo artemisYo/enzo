@@ -1,6 +1,8 @@
 module ParsComb (
     Parser (..), nap,
-    headP, predP, getP, prefixP 
+    headP, predP, getP, 
+    prefixP, validateP,
+    tracedGetP, tracedPredP
 ) where
 
 import Control.Applicative ((<|>), (<*>), Alternative, empty)
@@ -8,6 +10,8 @@ import Data.Bifunctor (first, second)
 import Control.Monad.Zip
 import Data.List (uncons, stripPrefix)
 import Data.Tuple (swap)
+
+import Debug.Trace (trace)
 
 data Parser m i o = Parser { runP :: [i] -> m ([i], o) }
 
@@ -40,6 +44,12 @@ instance Monad m => MonadZip (Parser m i) where
 nap :: (m ([i], o) -> n ([i], o)) -> Parser m i o -> Parser n i o
 nap t p = Parser $ t . runP p
 
+validateP :: Monad m => (o -> m o) -> Parser m i o -> Parser m i o
+validateP v p = Parser $ \i -> do
+    (rest, o) <- runP p i
+    o' <- v o
+    return (rest, o')
+
 headP :: Parser Maybe i i
 headP = Parser $ (fmap swap) . uncons
 
@@ -50,6 +60,15 @@ predP f = Parser $ \i -> do
 
 getP :: Eq i => i -> Parser Maybe i i
 getP i = predP (i ==)
+
+tracedPredP :: Show i => String -> (i -> Bool) -> Parser Maybe i i
+tracedPredP msg f = Parser $ \i -> do
+    trace (msg ++ show (take 5 i)) $ Just ()
+    (o, rest) <- uncons i
+    if f o then return (rest, o) else empty
+
+tracedGetP :: (Show i, Eq i) => String -> i -> Parser Maybe i i
+tracedGetP msg i = tracedPredP msg (i ==)
 
 prefixP :: Eq i => [i] -> Parser Maybe i [i]
 prefixP s = Parser $ (fmap (, s)) . stripPrefix s

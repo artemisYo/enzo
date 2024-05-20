@@ -2,14 +2,17 @@ module Parse (
     expr, Expr (..)
 ) where
 
-import ParsComb (Parser (..), predP, prefixP, getP)
+import ParsComb (Parser (..), predP, prefixP, getP, validateP)
 import Ops (Ops (..), OpName)
 import Tokens (Token (..))
 
 import qualified Data.IntMap as M
+import qualified Data.Set as S
+import Data.Set (Set)
 import Data.Text (Text)
 import Control.Applicative (some, empty, (<|>))
 import Data.List (foldl')
+import Data.Maybe (catMaybes)
 
 import Debug.Trace (trace)
 
@@ -32,8 +35,8 @@ expr ops = parseK ops 0
 -- (Expr, [Expr -> Expr]) -> foldl (&) fst snd
 parseK :: Ops -> Int -> Parser Maybe Token Expr
 parseK ops p
-    | p == (maxPrec ops + 1) = Call <$> some (Var <$> parseAnyName <|> parseK')
     | p == (maxPrec ops + 2) = getP OpenParen *> expr ops <* getP CloseParen
+    | p == (maxPrec ops + 1) = Call <$> some (Var <$> parseIdent ops <|> parseK')
     | otherwise = parseClosed
               <|> Infix <$> parseK' <*> parseNone <*> parseK'
               <|> flip (foldr appl) <$> some (parseR ops p) <*> parseK'
@@ -67,12 +70,24 @@ parseOp :: Ops -> OpName -> Parser Maybe Token Expr
 parseOp ops parts = Prim <$> sequenceA (constructOp <$> parts)
     where constructOp = maybe (Right <$> expr ops) ((fmap Left) . parseName)
 
+
+parseIdent :: Ops -> Parser Maybe Token Text
+parseIdent ops = validateP isNotReserved parseAnyName
+    where isNotReserved t = if S.member t reserved then Nothing else Just t
+          reserved = (M.foldr insertOpNames S.empty $ none ops)
+           `S.union` (M.foldr insertOpNames S.empty $ left ops)
+           `S.union` (M.foldr insertOpNames S.empty $ right ops)
+           `S.union` (M.foldr insertOpNames S.empty $ closed ops)
+           `S.union` (M.foldr insertOpNames S.empty $ prefix ops)
+           `S.union` (M.foldr insertOpNames S.empty $ postfix ops)
+          insertOpNames list set = foldr S.insert set (list >>= catMaybes)
+
 parseName :: Text -> Parser Maybe Token Text
 parseName text = Parser $ \i -> case i of
     ((Name t) : rest) | t == text -> Just (rest, t)
     _ -> Nothing
 
 parseAnyName :: Parser Maybe Token Text
-parseAnyName = Parser $ \i -> case i of
+parseAnyName = Parser $ \i -> trace ("fuck you" ++ (show $ take 5 i)) $ case i of
     ((Name t) : rest) -> Just (rest, t)
     _ -> Nothing

@@ -19,8 +19,15 @@ k(p) → closed(p)
      / k(p+1) l(p)+
      / k(p+1)         -- when all else fails, climb
 
-k(max+1) → ( :name / k(max+2) )+
+k(max+1) → ( ident / k(max+2) )+
 k(max+2) → :openParen expr :closeParen
+
+ident = :name - (closed  ∪ 
+                 none    ∪ 
+                 prefix  ∪ 
+                 right   ∪
+                 postfix ∪ 
+                 left    )
 
 r(p) → prefix(p)
      / k(p+1) right(p)
